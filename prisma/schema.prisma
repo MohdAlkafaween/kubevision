@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model ClusterConfig {
+  id                String   @id @default(cuid())
+  contextName       String   @unique
+  prometheusUrl     String?
+  displayName       String?
+  impersonateUser   String?
+  impersonateGroups String?
+  allowExec         Boolean  @default(false)
+  allowDelete       Boolean  @default(false)
+  allowApply        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Snapshot {
+  id          String   @id @default(cuid())
+  contextName String
+  label       String   @default("")
+  data        String
+  resourceCount Int    @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([contextName, createdAt])
+}
+
+model UserPreference {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+}
+
+model SavedTopology {
+  id          String   @id @default(cuid())
+  name        String
+  contextName String?
+  nodesJson   String
+  edgesJson   String
+  nodeCount   Int      @default(0)
+  edgeCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([contextName])
+}
+
+model GitConfig {
+  id         String @id @default(cuid())
+  contextName String @unique
+  githubToken String
+  repoOwner   String
+  repoName    String
+  baseBranch  String @default("main")
+  targetPath  String @default("k8s/")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("admin")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  resource  String
+  detail    String   @default("")
+  user      String   @default("admin")
+  cluster   String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([cluster])
+}
+
+model AiConfig {
+  id          String   @id @default("singleton")
+  provider    String   @default("openai")
+  apiKey      String   @default("")
+  baseUrl     String   @default("")
+  model       String   @default("gpt-4o")
+  temperature Float    @default(0.7)
+  maxTokens   Int      @default(4096)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

@@ -1,0 +1,12 @@
+apiVersion: v2
+name: kubevision
+description: Kubernetes cluster monitor and architecture visualizer
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - kubernetes
+  - monitoring
+  - visualization
+  - topology
+home: https://github.com/kubevision/kubevision
