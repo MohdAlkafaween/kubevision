@@ -60,8 +60,8 @@ const edgeTypes: EdgeTypes = {
 };
 
 function PlanningCanvasInner({ cluster }: { cluster: string | null }) {
-  const [nodes, setNodes, onNodesChange] = useNodesState<PlanNodeData>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<PlanEdgeData>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<PlanNodeData>>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<PlanEdgeData>>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [showYaml, setShowYaml] = useState(false);
@@ -127,7 +127,7 @@ function PlanningCanvasInner({ cluster }: { cluster: string | null }) {
           connectionType: "routes-to" as const,
         },
       };
-      setEdges((eds) => addEdge(newEdge, eds));
+      setEdges((eds) => addEdge(newEdge, eds) as Edge<PlanEdgeData>[]);
     },
     [setEdges]
   );
@@ -162,7 +162,7 @@ function PlanningCanvasInner({ cluster }: { cluster: string | null }) {
             color: "",
           },
         };
-        setNodes((nds) => [clusterNode, ...nds]);
+        setNodes((nds) => [clusterNode as Node<PlanNodeData>, ...nds]);
         return;
       }
 

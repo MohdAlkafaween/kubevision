@@ -52,8 +52,8 @@ export async function GET(
 }
 
 function sumContainerMetric(
-  containers: Array<{ usage: Record<string, string> }>,
-  metric: string
+  containers: Array<{ usage: { cpu?: string; memory?: string } }>,
+  metric: "cpu" | "memory"
 ): number {
   return containers.reduce(
     (sum, c) => sum + parseMetricValue(c.usage?.[metric] || "0"),

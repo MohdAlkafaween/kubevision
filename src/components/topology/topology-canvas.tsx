@@ -16,7 +16,7 @@ import { BaseNode } from "./nodes/base-node";
 import { TrafficEdge } from "./edges/traffic-edge";
 import { computeElkLayout } from "./elk-layout";
 import type { ClusterResources, K8sResource } from "@/types/k8s";
-import type { TopologyNodeData } from "@/types/topology";
+import type { TopologyNode, TopologyEdge, TopologyNodeData } from "@/types/topology";
 import type { MetricsHistory } from "@/hooks/use-metrics";
 import type { ServiceTraffic } from "@/types/metrics";
 import { buildTopologyGraph } from "@/lib/topology/builder";
@@ -58,8 +58,8 @@ export function TopologyCanvas({
   metricsHistory,
   prometheusTraffic,
 }: TopologyCanvasProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<TopologyNode>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<TopologyEdge>([]);
   const [layoutComputed, setLayoutComputed] = useState(false);
 
   const graph = useMemo(() => {
@@ -132,14 +132,14 @@ export function TopologyCanvas({
           ...edge,
           animated: true,
           data: {
-            ...((edge.data || {}) as Record<string, unknown>),
+            ...(edge.data || {}),
             traffic: {
               requestsPerSec: match.requestsPerSec,
               latencyP95: match.latencyP95Ms,
               errorRate: match.errorRate,
             },
           },
-        };
+        } as TopologyEdge;
       })
     );
   }, [prometheusTraffic, layoutComputed, setEdges, nodes]);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -28,7 +28,7 @@ interface EventTimelineProps {
   events: K8sEventItem[];
 }
 
-const eventIcons: Record<string, JSX.Element> = {
+const eventIcons: Record<string, React.ReactNode> = {
   ADDED: <ArrowUpCircle className="w-3 h-3 text-neon-green" />,
   MODIFIED: <RefreshCw className="w-3 h-3 text-neon-cyan" />,
   DELETED: <ArrowDownCircle className="w-3 h-3 text-neon-red" />,

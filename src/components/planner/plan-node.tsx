@@ -31,6 +31,7 @@ export interface PlanNodeData {
   driftStatus?: DriftStatus;
   driftDetails?: DriftDetail[];
   validationErrors?: NodeValidationError[];
+  [key: string]: unknown;
 }
 
 const kindColors: Record<string, string> = {
