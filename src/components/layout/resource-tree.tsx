@@ -60,6 +60,7 @@ interface TreeItem {
 const SPECIAL_VIEWS: TreeItem[] = [
   { id: "topology", label: "Cluster", icon: Workflow },
   { id: "overview", label: "Overview", icon: LayoutGrid },
+  { id: "config-studio", label: "Config Studio", icon: FileCode },
   { id: "planner", label: "Planner", icon: PenTool },
   { id: "compare", label: "Compare", icon: Scale },
 ];
