@@ -57,7 +57,7 @@ export function useResources(cluster: string | null) {
 }
 
 export function useResourceStream(cluster: string | null) {
-  const [events, setEvents] = useState<Array<{ type: string; resource: unknown; timestamp: string }>>([]);
+  const [events, setEvents] = useState<Array<{ type: string; resource: { kind: string; name: string; namespace?: string; [key: string]: unknown }; timestamp: string }>>([]);
 
   useEffect(() => {
     if (!cluster) return;

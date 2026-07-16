@@ -22,6 +22,7 @@ export interface TopologyNodeData {
     latestMemory: number;
   };
   raw: unknown;
+  [key: string]: unknown;
 }
 
 export type TopologyNode = Node<TopologyNodeData>;

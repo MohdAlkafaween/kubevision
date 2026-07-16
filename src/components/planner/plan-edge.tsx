@@ -14,6 +14,7 @@ export interface PlanEdgeData {
   protocol?: string;
   port?: number;
   notes?: string;
+  [key: string]: unknown;
 }
 
 const edgeColors: Record<string, string> = {
