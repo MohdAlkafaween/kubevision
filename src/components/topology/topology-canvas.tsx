@@ -19,6 +19,7 @@ import type { ClusterResources, K8sResource } from "@/types/k8s";
 import type { TopologyNode, TopologyEdge, TopologyNodeData } from "@/types/topology";
 import type { MetricsHistory } from "@/hooks/use-metrics";
 import type { ServiceTraffic } from "@/types/metrics";
+import type { TrafficSnapshot, PodActivity } from "@/hooks/use-traffic";
 import { buildTopologyGraph } from "@/lib/topology/builder";
 
 const nodeTypes: NodeTypes = {
@@ -49,6 +50,7 @@ interface TopologyCanvasProps {
   onNodeClick?: (resource: K8sResource) => void;
   metricsHistory?: MetricsHistory;
   prometheusTraffic?: ServiceTraffic[];
+  trafficSnapshot?: TrafficSnapshot | null;
 }
 
 export function TopologyCanvas({
@@ -57,6 +59,7 @@ export function TopologyCanvas({
   onNodeClick,
   metricsHistory,
   prometheusTraffic,
+  trafficSnapshot,
 }: TopologyCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<TopologyNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<TopologyEdge>([]);
@@ -143,6 +146,99 @@ export function TopologyCanvas({
       })
     );
   }, [prometheusTraffic, layoutComputed, setEdges, nodes]);
+
+  // Live traffic from metrics-server + endpoints (no Prometheus needed)
+  useEffect(() => {
+    if (!trafficSnapshot || !layoutComputed) return;
+
+    const activePods = new Map<string, PodActivity>();
+    for (const pm of trafficSnapshot.podMetrics) {
+      activePods.set(`${pm.namespace}/${pm.name}`, pm);
+    }
+
+    const activeEndpoints = new Set<string>();
+    for (const link of trafficSnapshot.endpointLinks) {
+      if (link.ready) {
+        activeEndpoints.add(`${link.serviceUid}-${link.podUid}`);
+      }
+    }
+
+    setNodes((prev) =>
+      prev.map((node) => {
+        const d = node.data as TopologyNodeData;
+        if (d.kind === "Pod") {
+          const key = `${d.namespace}/${d.label}`;
+          const pm = activePods.get(key);
+          if (pm) {
+            return {
+              ...node,
+              data: {
+                ...d,
+                info: {
+                  ...d.info,
+                  cpu: `${pm.cpuMillicores}m`,
+                  memory: `${pm.memoryMi}Mi`,
+                },
+              },
+            };
+          }
+        }
+        if (d.kind === "Node") {
+          const nm = trafficSnapshot.nodeMetrics.find((n) => n.name === d.label);
+          if (nm) {
+            return {
+              ...node,
+              data: {
+                ...d,
+                info: {
+                  ...d.info,
+                  cpu: `${nm.cpuMillicores}m`,
+                  memory: `${nm.memoryMi}Mi`,
+                },
+              },
+            };
+          }
+        }
+        return node;
+      })
+    );
+
+    setEdges((prev) =>
+      prev.map((edge) => {
+        const epKey = `${edge.source}-${edge.target}`;
+        const reverseKey = `${edge.target}-${edge.source}`;
+        const isLive = activeEndpoints.has(epKey) || activeEndpoints.has(reverseKey);
+
+        if (isLive) {
+          const targetNode = nodes.find((n) => n.id === edge.target);
+          const tgtData = targetNode?.data as TopologyNodeData | undefined;
+          let cpuLabel = "";
+          if (tgtData?.kind === "Pod") {
+            const pm = activePods.get(`${tgtData.namespace}/${tgtData.label}`);
+            if (pm) cpuLabel = `${pm.cpuMillicores}m`;
+          }
+          return {
+            ...edge,
+            animated: true,
+            data: {
+              ...(edge.data || {}),
+              animated: true,
+              liveTraffic: true,
+              cpuLabel,
+            },
+            style: {
+              ...edge.style,
+              stroke: "#00E5FF",
+              strokeWidth: 2,
+              opacity: 1,
+            },
+          } as TopologyEdge;
+        }
+
+        return edge;
+      })
+    );
+  }, [trafficSnapshot, layoutComputed, setNodes, setEdges, nodes]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: { data: TopologyNodeData }) => {

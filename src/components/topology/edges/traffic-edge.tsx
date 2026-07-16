@@ -22,10 +22,14 @@ export function TrafficEdge({
     targetPosition,
   });
 
-  const traffic = (data as Record<string, unknown>)?.traffic as
+  const d = data as Record<string, unknown> | undefined;
+  const traffic = d?.traffic as
     | { requestsPerSec: number; latencyP95: number; errorRate: number }
     | undefined;
-  const isActive = traffic && traffic.requestsPerSec > 0;
+  const liveTraffic = d?.liveTraffic as boolean | undefined;
+  const cpuLabel = d?.cpuLabel as string | undefined;
+
+  const isActive = (traffic && traffic.requestsPerSec > 0) || liveTraffic;
   const hasErrors = traffic && traffic.errorRate > 0.05;
 
   return (
@@ -55,6 +59,19 @@ export function TrafficEdge({
           >
             {traffic.requestsPerSec.toFixed(1)}/s
             {traffic.latencyP95 > 0 && ` · ${traffic.latencyP95.toFixed(0)}ms`}
+          </textPath>
+        </text>
+      )}
+      {liveTraffic && !traffic && cpuLabel && (
+        <text>
+          <textPath
+            href={`#${id}`}
+            startOffset="50%"
+            textAnchor="middle"
+            className="text-[8px]"
+            fill="#00E5FF"
+          >
+            ● {cpuLabel}
           </textPath>
         </text>
       )}
