@@ -31,6 +31,7 @@ import { useClusters, useResources, useResourceStream } from "@/hooks/use-cluste
 import { useMetrics } from "@/hooks/use-metrics";
 import { useNotifications } from "@/hooks/use-notifications";
 import { usePrometheus } from "@/hooks/use-prometheus";
+import { useTraffic } from "@/hooks/use-traffic";
 import {
   harvestDashboardContext,
   harvestResourceContext,
@@ -68,6 +69,7 @@ export default function Home() {
   const events = useResourceStream(activeCluster);
   const { metrics: metricsHistory } = useMetrics(activeCluster);
   const { traffic: prometheusTraffic } = usePrometheus(activeCluster);
+  const trafficSnapshot = useTraffic(activeCluster);
   const {
     notifications,
     unreadCount,
@@ -268,6 +270,7 @@ export default function Home() {
                   onNodeClick={handleNodeClick}
                   metricsHistory={metricsHistory}
                   prometheusTraffic={prometheusTraffic}
+                  trafficSnapshot={trafficSnapshot}
                 />
               </div>
             )}
