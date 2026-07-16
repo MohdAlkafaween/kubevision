@@ -285,7 +285,7 @@ export default function Home() {
             {activeView === "events" && <EventTimeline events={events} />}
 
             {activeView === "metrics" && (
-              <ResourceHeatmap resources={resources} />
+              <ResourceHeatmap resources={resources} onSelect={handleResourceSelect} />
             )}
 
             {activeView === "security" && (
