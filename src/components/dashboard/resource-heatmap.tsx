@@ -1,14 +1,15 @@
 "use client";
 
 import { useMemo } from "react";
-import type { ClusterResources } from "@/types/k8s";
+import type { ClusterResources, K8sResource } from "@/types/k8s";
 import { Badge } from "@/components/ui/badge";
 
 interface ResourceHeatmapProps {
   resources: ClusterResources | null;
+  onSelect?: (resource: K8sResource) => void;
 }
 
-export function ResourceHeatmap({ resources }: ResourceHeatmapProps) {
+export function ResourceHeatmap({ resources, onSelect }: ResourceHeatmapProps) {
   if (!resources) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
@@ -83,7 +84,15 @@ export function ResourceHeatmap({ resources }: ResourceHeatmapProps) {
                       : "bg-neon-red"
                   }`}
                 />
-                <span className="text-xs font-medium">{group.nodeName}</span>
+                <span
+                  className="text-xs font-medium cursor-pointer hover:text-neon-cyan transition-colors"
+                  onClick={() => {
+                    const node = resources.nodes.find((n) => n.name === group.nodeName);
+                    if (node) onSelect?.(node);
+                  }}
+                >
+                  {group.nodeName}
+                </span>
                 <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 ml-auto">
                   {healthyPods}/{totalPods} pods
                 </Badge>
@@ -99,7 +108,8 @@ export function ResourceHeatmap({ resources }: ResourceHeatmapProps) {
                     <div
                       key={pod.uid}
                       title={`${pod.name}\n${pod.status.phase}${hasRestarts ? ` (${pod.status.restartCount} restarts)` : ""}`}
-                      className={`w-6 h-6 rounded flex items-center justify-center text-[7px] cursor-default transition-all hover:scale-125 ${
+                      onClick={() => onSelect?.(pod)}
+                      className={`w-6 h-6 rounded flex items-center justify-center text-[7px] cursor-pointer transition-all hover:scale-125 ${
                         isHealthy
                           ? "bg-neon-green/20 text-neon-green border border-neon-green/30"
                           : isPending
