@@ -6,10 +6,4 @@ export default defineConfig({
   datasource: {
     url: "file:./prisma/dev.db",
   },
-  migrate: {
-    adapter: async () => {
-      const { PrismaBetterSQLite } = await import("@prisma/adapter-better-sqlite3");
-      return new PrismaBetterSQLite({ url: "file:./prisma/dev.db" });
-    },
-  },
 });
