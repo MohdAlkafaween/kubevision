@@ -13,6 +13,7 @@ export interface ClusterNodeData {
   notes: string;
   namespace: string;
   color: string;
+  [key: string]: unknown;
 }
 
 const ClusterNode = memo(function ClusterNode({

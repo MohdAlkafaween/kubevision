@@ -8,7 +8,7 @@ export interface AiContext {
 function findUnhealthyPods(resources: ClusterResources | null): K8sResource[] {
   if (!resources) return [];
   return resources.pods.filter((p) => {
-    const phase = p.status;
+    const phase = p.status.phase;
     return (
       phase === "Failed" ||
       phase === "CrashLoopBackOff" ||
@@ -21,21 +21,21 @@ function findUnhealthyPods(resources: ClusterResources | null): K8sResource[] {
 }
 
 function findRecentEvents(
-  events: Array<{ type: string; reason: string; message: string; involvedObject?: string }>,
+  events: Array<{ type: string; resource: { kind: string; name: string; namespace?: string; [key: string]: unknown }; timestamp: string }>,
   limit = 10
 ): string {
-  const warnings = events
-    .filter((e) => e.type === "Warning")
+  const recent = events
+    .filter((e) => e.type === "DELETED" || e.type === "MODIFIED")
     .slice(0, limit);
-  if (warnings.length === 0) return "No warning events.";
-  return warnings
-    .map((e) => `[${e.reason}] ${e.involvedObject || ""}: ${e.message}`)
+  if (recent.length === 0) return "No recent resource changes.";
+  return recent
+    .map((e) => `[${e.type}] ${e.resource.kind}/${e.resource.name}${e.resource.namespace ? ` in ${e.resource.namespace}` : ""}`)
     .join("\n");
 }
 
 export function harvestDashboardContext(
   resources: ClusterResources | null,
-  events: Array<{ type: string; reason: string; message: string; involvedObject?: string }>,
+  events: Array<{ type: string; resource: { kind: string; name: string; namespace?: string; [key: string]: unknown }; timestamp: string }>,
   cluster: string | null
 ): AiContext {
   const unhealthy = findUnhealthyPods(resources);
