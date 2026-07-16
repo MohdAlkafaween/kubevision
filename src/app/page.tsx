@@ -271,6 +271,7 @@ export default function Home() {
                   metricsHistory={metricsHistory}
                   prometheusTraffic={prometheusTraffic}
                   trafficSnapshot={trafficSnapshot}
+                  cluster={activeCluster}
                 />
               </div>
             )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Controls,
@@ -8,13 +8,17 @@ import {
   BackgroundVariant,
   useNodesState,
   useEdgesState,
+  useReactFlow,
+  ReactFlowProvider,
   type NodeTypes,
   type EdgeTypes,
+  type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { BaseNode } from "./nodes/base-node";
 import { TrafficEdge } from "./edges/traffic-edge";
 import { computeElkLayout } from "./elk-layout";
+import { RotateCcw, Lock, Unlock } from "lucide-react";
 import type { ClusterResources, K8sResource } from "@/types/k8s";
 import type { TopologyNode, TopologyEdge, TopologyNodeData } from "@/types/topology";
 import type { MetricsHistory } from "@/hooks/use-metrics";
@@ -44,6 +48,39 @@ const edgeTypes: EdgeTypes = {
   traffic: TrafficEdge,
 };
 
+function getStorageKey(cluster: string | undefined, ns: string | undefined) {
+  return `kv-topology-${cluster || "none"}-${ns || "all"}`;
+}
+
+interface SavedLayout {
+  positions: Record<string, { x: number; y: number }>;
+  viewport?: Viewport;
+  savedAt: number;
+}
+
+function saveLayout(key: string, nodes: TopologyNode[], viewport?: Viewport) {
+  const positions: Record<string, { x: number; y: number }> = {};
+  for (const n of nodes) {
+    positions[n.id] = { x: n.position.x, y: n.position.y };
+  }
+  const layout: SavedLayout = { positions, viewport, savedAt: Date.now() };
+  try {
+    localStorage.setItem(key, JSON.stringify(layout));
+  } catch {
+    // quota exceeded — ignore
+  }
+}
+
+function loadLayout(key: string): SavedLayout | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as SavedLayout;
+  } catch {
+    return null;
+  }
+}
+
 interface TopologyCanvasProps {
   resources: ClusterResources | null;
   namespaceFilter?: string;
@@ -51,19 +88,26 @@ interface TopologyCanvasProps {
   metricsHistory?: MetricsHistory;
   prometheusTraffic?: ServiceTraffic[];
   trafficSnapshot?: TrafficSnapshot | null;
+  cluster?: string | null;
 }
 
-export function TopologyCanvas({
+function TopologyCanvasInner({
   resources,
   namespaceFilter,
   onNodeClick,
   metricsHistory,
   prometheusTraffic,
   trafficSnapshot,
+  cluster,
 }: TopologyCanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<TopologyNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<TopologyEdge>([]);
   const [layoutComputed, setLayoutComputed] = useState(false);
+  const [layoutLocked, setLayoutLocked] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const storageKey = getStorageKey(cluster ?? undefined, namespaceFilter);
+  const { getViewport, setViewport } = useReactFlow();
+  const initialFitDone = useRef(false);
 
   const graph = useMemo(() => {
     if (!resources) return { nodes: [], edges: [] };
@@ -78,13 +122,98 @@ export function TopologyCanvas({
       return;
     }
 
+    const saved = loadLayout(storageKey);
+
+    if (saved && Object.keys(saved.positions).length > 0) {
+      const positioned = graph.nodes.map((n) => {
+        const pos = saved.positions[n.id];
+        return pos ? { ...n, position: pos } : n;
+      });
+
+      const hasNewNodes = graph.nodes.some((n) => !saved.positions[n.id]);
+
+      if (hasNewNodes) {
+        const newNodes = positioned.filter((n) => !saved.positions[n.id]);
+        const savedNodes = positioned.filter((n) => saved.positions[n.id]);
+
+        computeElkLayout(newNodes, []).then((layoutNew) => {
+          const maxX = Math.max(0, ...savedNodes.map((n) => n.position.x));
+          const offset = maxX + 200;
+          const allNodes = [
+            ...savedNodes,
+            ...layoutNew.map((n) => ({
+              ...n,
+              position: { x: n.position.x + offset, y: n.position.y },
+            })),
+          ];
+          setNodes(allNodes);
+          setEdges(graph.edges);
+          setLayoutComputed(true);
+
+          if (saved.viewport) {
+            setTimeout(() => setViewport(saved.viewport!), 50);
+          }
+        });
+      } else {
+        setNodes(positioned);
+        setEdges(graph.edges);
+        setLayoutComputed(true);
+
+        if (saved.viewport) {
+          setTimeout(() => setViewport(saved.viewport!), 50);
+          initialFitDone.current = true;
+        }
+      }
+    } else {
+      setLayoutComputed(false);
+      computeElkLayout(graph.nodes, graph.edges).then((layoutNodes) => {
+        setNodes(layoutNodes);
+        setEdges(graph.edges);
+        setLayoutComputed(true);
+        initialFitDone.current = false;
+      });
+    }
+  }, [graph, setNodes, setEdges, storageKey, setViewport]);
+
+  const debouncedSave = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      setNodes((current) => {
+        const vp = getViewport();
+        saveLayout(storageKey, current, vp);
+        return current;
+      });
+    }, 500);
+  }, [storageKey, setNodes, getViewport]);
+
+  const handleNodesChange = useCallback(
+    (changes: Parameters<typeof onNodesChange>[0]) => {
+      onNodesChange(changes);
+      const hasDrag = changes.some((c) => c.type === "position" && (c as { dragging?: boolean }).dragging === false);
+      if (hasDrag) {
+        debouncedSave();
+      }
+    },
+    [onNodesChange, debouncedSave]
+  );
+
+  const handleMoveEnd = useCallback(() => {
+    debouncedSave();
+  }, [debouncedSave]);
+
+  const handleResetLayout = useCallback(() => {
+    if (graph.nodes.length === 0) return;
+    try {
+      localStorage.removeItem(storageKey);
+    } catch {}
     setLayoutComputed(false);
+    initialFitDone.current = false;
     computeElkLayout(graph.nodes, graph.edges).then((layoutNodes) => {
       setNodes(layoutNodes);
       setEdges(graph.edges);
       setLayoutComputed(true);
     });
-  }, [graph, setNodes, setEdges]);
+  }, [graph, storageKey, setNodes, setEdges]);
 
   useEffect(() => {
     if (!metricsHistory || !layoutComputed) return;
@@ -147,7 +276,6 @@ export function TopologyCanvas({
     );
   }, [prometheusTraffic, layoutComputed, setEdges, nodes]);
 
-  // Live traffic from metrics-server + endpoints (no Prometheus needed)
   useEffect(() => {
     if (!trafficSnapshot || !layoutComputed) return;
 
@@ -291,15 +419,43 @@ export function TopologyCanvas({
         </div>
       )}
 
+      {/* Layout controls */}
+      {layoutComputed && graph.nodes.length > 0 && (
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
+          <button
+            onClick={() => setLayoutLocked((l) => !l)}
+            className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded border transition-colors ${
+              layoutLocked
+                ? "bg-neon-amber/10 border-neon-amber/50 text-neon-amber"
+                : "bg-card border-border text-muted-foreground hover:text-foreground"
+            }`}
+            title={layoutLocked ? "Unlock nodes" : "Lock nodes in place"}
+          >
+            {layoutLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
+            {layoutLocked ? "Locked" : "Unlocked"}
+          </button>
+          <button
+            onClick={handleResetLayout}
+            className="flex items-center gap-1 text-[10px] px-2 py-1 rounded border bg-card border-border text-muted-foreground hover:text-foreground transition-colors"
+            title="Reset to auto-layout"
+          >
+            <RotateCcw className="w-3 h-3" />
+            Reset
+          </button>
+        </div>
+      )}
+
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={onNodesChange}
+        onNodesChange={handleNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
+        onMoveEnd={handleMoveEnd}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        fitView
+        nodesDraggable={!layoutLocked}
+        fitView={!initialFitDone.current}
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.1}
         maxZoom={2}
@@ -317,5 +473,13 @@ export function TopologyCanvas({
         />
       </ReactFlow>
     </div>
+  );
+}
+
+export function TopologyCanvas(props: TopologyCanvasProps) {
+  return (
+    <ReactFlowProvider>
+      <TopologyCanvasInner {...props} />
+    </ReactFlowProvider>
   );
 }
