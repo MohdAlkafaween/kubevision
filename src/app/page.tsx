@@ -27,6 +27,7 @@ import { PdbViewer } from "@/components/dashboard/pdb-viewer";
 import { QuotaViewer } from "@/components/dashboard/quota-viewer";
 import { RbacViewer } from "@/components/dashboard/rbac-viewer";
 import { LiveLogStream } from "@/components/dashboard/live-log-stream";
+import { ConfigWorkspace } from "@/components/config-editor/config-workspace";
 import { useClusters, useResources, useResourceStream } from "@/hooks/use-cluster";
 import { useMetrics } from "@/hooks/use-metrics";
 import { useNotifications } from "@/hooks/use-notifications";
@@ -285,6 +286,8 @@ export default function Home() {
             )}
 
             {activeView === "planner" && <PlanningCanvas cluster={activeCluster} />}
+
+            {activeView === "config-studio" && <ConfigWorkspace />}
 
             {activeView === "overview" && (
               <ClusterOverview resources={resources} cluster={activeCluster} />
