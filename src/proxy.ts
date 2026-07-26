@@ -6,13 +6,14 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isAuthRoute = pathname.startsWith("/api/auth");
+  const isHealthRoute = pathname === "/api/health";
   const isLoginPage = pathname === "/login";
   const isStaticAsset =
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.includes(".");
 
-  if (isAuthRoute || isLoginPage || isStaticAsset) {
+  if (isAuthRoute || isHealthRoute || isLoginPage || isStaticAsset) {
     return NextResponse.next();
   }
 

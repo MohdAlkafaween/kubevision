@@ -83,7 +83,7 @@ export default function Home() {
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalHeight, setTerminalHeight] = useState(280);
   const [selectedResource, setSelectedResource] = useState<K8sResource | null>(null);
-  const [namespaceFilter, setNamespaceFilter] = useState<string | undefined>();
+  const [namespaceFilter, setNamespaceFilter] = useState<string[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
 
@@ -236,32 +236,40 @@ export default function Home() {
                   </div>
                 )}
                 {namespaces.length > 0 && (
-                  <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5">
+                  <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 flex-wrap max-w-[75%]">
                     <button
-                      onClick={() => setNamespaceFilter(undefined)}
+                      onClick={() => setNamespaceFilter([])}
+                      title="Show all namespaces"
                       className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
-                        !namespaceFilter
+                        namespaceFilter.length === 0
                           ? "bg-neon-cyan/10 border-neon-cyan/50 text-neon-cyan"
                           : "bg-card border-border text-muted-foreground hover:text-foreground"
                       }`}
                     >
                       All
                     </button>
-                    {namespaces.map((ns) => (
-                      <button
-                        key={ns}
-                        onClick={() =>
-                          setNamespaceFilter(ns === namespaceFilter ? undefined : (ns ?? undefined))
-                        }
-                        className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
-                          namespaceFilter === ns
-                            ? "bg-neon-cyan/10 border-neon-cyan/50 text-neon-cyan"
-                            : "bg-card border-border text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {ns}
-                      </button>
-                    ))}
+                    {namespaces.map((ns) => {
+                      if (!ns) return null;
+                      const active = namespaceFilter.includes(ns);
+                      return (
+                        <button
+                          key={ns}
+                          onClick={() =>
+                            setNamespaceFilter((prev) =>
+                              prev.includes(ns) ? prev.filter((n) => n !== ns) : [...prev, ns]
+                            )
+                          }
+                          title={active ? `Remove ${ns} from filter` : `Add ${ns} to filter`}
+                          className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
+                            active
+                              ? "bg-neon-cyan/10 border-neon-cyan/50 text-neon-cyan"
+                              : "bg-card border-border text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          {ns}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
                 <TopologyCanvas

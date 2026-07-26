@@ -47,3 +47,5 @@ prisma/dev.db-journal
 
 # log storage
 /data/
+chart/values.local.yaml
+/certs

@@ -20,21 +20,21 @@ const statusDotColors = {
 };
 
 const kindIcons: Record<string, string> = {
-  Node: "???",
-  Pod: "???",
-  Deployment: "???",
-  ReplicaSet: "???",
-  StatefulSet: "???",
-  DaemonSet: "???",
-  Service: "???",
-  Ingress: "???",
-  PersistentVolumeClaim: "???",
-  PersistentVolume: "???",
-  ConfigMap: "???",
-  Secret: "???",
-  Namespace: "???",
-  Job: "???",
-  CronJob: "???",
+  Node: "🖥",
+  Pod: "▣",
+  Deployment: "⬢",
+  ReplicaSet: "⧉",
+  StatefulSet: "▤",
+  DaemonSet: "◈",
+  Service: "◎",
+  Ingress: "⇢",
+  PersistentVolumeClaim: "▥",
+  PersistentVolume: "▦",
+  ConfigMap: "⚙",
+  Secret: "🔒",
+  Namespace: "▢",
+  Job: "▶",
+  CronJob: "◷",
 };
 
 const ELASTIC_COMPONENTS: Record<string, { badge: string; color: string }> = {
