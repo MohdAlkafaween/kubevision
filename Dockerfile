@@ -23,12 +23,18 @@ RUN adduser --system --uid 1001 nextjs
 RUN apk add --no-cache kubectl
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Next's standalone output traces only what server.js needs, which drops the
+# `prisma` CLI package (and its `prisma/config` module) since nothing in the
+# app imports it — but the startup command below shells out to `npx prisma`.
+# Layer the full deps node_modules on top so that CLI is actually available.
+COPY --from=deps /app/node_modules ./node_modules
 RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 ENV DATABASE_URL="file:/app/data/kubevision.db"
-CMD ["sh", "-c", "npx prisma migrate deploy 2>/dev/null; npx prisma db push --skip-generate 2>/dev/null; node server.js"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss; node server.js"]

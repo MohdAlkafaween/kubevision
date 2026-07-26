@@ -48,8 +48,9 @@ const edgeTypes: EdgeTypes = {
   traffic: TrafficEdge,
 };
 
-function getStorageKey(cluster: string | undefined, ns: string | undefined) {
-  return `kv-topology-${cluster || "none"}-${ns || "all"}`;
+function getStorageKey(cluster: string | undefined, ns: string[] | undefined) {
+  const nsKey = ns && ns.length > 0 ? [...ns].sort().join(",") : "all";
+  return `kv-topology-${cluster || "none"}-${nsKey}`;
 }
 
 interface SavedLayout {
@@ -83,7 +84,7 @@ function loadLayout(key: string): SavedLayout | null {
 
 interface TopologyCanvasProps {
   resources: ClusterResources | null;
-  namespaceFilter?: string;
+  namespaceFilter?: string[];
   onNodeClick?: (resource: K8sResource) => void;
   metricsHistory?: MetricsHistory;
   prometheusTraffic?: ServiceTraffic[];
@@ -108,6 +109,10 @@ function TopologyCanvasInner({
   const storageKey = getStorageKey(cluster ?? undefined, namespaceFilter);
   const { getViewport, setViewport } = useReactFlow();
   const initialFitDone = useRef(false);
+  const nodesRef = useRef(nodes);
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   const graph = useMemo(() => {
     if (!resources) return { nodes: [], edges: [] };
@@ -249,8 +254,8 @@ function TopologyCanvasInner({
     setEdges((prev) =>
       prev.map((edge) => {
         if (edge.type !== "traffic") return edge;
-        const sourceNode = nodes.find((n) => n.id === edge.source);
-        const targetNode = nodes.find((n) => n.id === edge.target);
+        const sourceNode = nodesRef.current.find((n) => n.id === edge.source);
+        const targetNode = nodesRef.current.find((n) => n.id === edge.target);
         if (!sourceNode || !targetNode) return edge;
         const srcData = sourceNode.data as TopologyNodeData;
         const tgtData = targetNode.data as TopologyNodeData;
@@ -274,7 +279,7 @@ function TopologyCanvasInner({
         } as TopologyEdge;
       })
     );
-  }, [prometheusTraffic, layoutComputed, setEdges, nodes]);
+  }, [prometheusTraffic, layoutComputed, setEdges]);
 
   useEffect(() => {
     if (!trafficSnapshot || !layoutComputed) return;
@@ -338,7 +343,7 @@ function TopologyCanvasInner({
         const isLive = activeEndpoints.has(epKey) || activeEndpoints.has(reverseKey);
 
         if (isLive) {
-          const targetNode = nodes.find((n) => n.id === edge.target);
+          const targetNode = nodesRef.current.find((n) => n.id === edge.target);
           const tgtData = targetNode?.data as TopologyNodeData | undefined;
           let cpuLabel = "";
           if (tgtData?.kind === "Pod") {
@@ -366,7 +371,7 @@ function TopologyCanvasInner({
         return edge;
       })
     );
-  }, [trafficSnapshot, layoutComputed, setNodes, setEdges, nodes]);
+  }, [trafficSnapshot, layoutComputed, setNodes, setEdges]);
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: { data: TopologyNodeData }) => {

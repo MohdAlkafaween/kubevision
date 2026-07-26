@@ -70,7 +70,7 @@ function makeNode(r: K8sResource, position = { x: 0, y: 0 }): TopologyNode {
 
 export function buildTopologyGraph(
   resources: ClusterResources,
-  namespaceFilter?: string
+  namespaceFilter?: string[]
 ): { nodes: TopologyNode[]; edges: TopologyEdge[] } {
   const nodes: TopologyNode[] = [];
 
@@ -86,9 +86,9 @@ export function buildTopologyGraph(
     ...resources.pvs,
   ];
 
-  const filtered = namespaceFilter
+  const filtered = namespaceFilter && namespaceFilter.length > 0
     ? allResources.filter(
-        (r) => !r.namespace || r.namespace === namespaceFilter || r.kind === "Node" || r.kind === "PersistentVolume"
+        (r) => !r.namespace || namespaceFilter.includes(r.namespace) || r.kind === "Node" || r.kind === "PersistentVolume"
       )
     : allResources;
 
