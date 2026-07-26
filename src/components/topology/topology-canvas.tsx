@@ -67,9 +67,7 @@ function saveLayout(key: string, nodes: TopologyNode[], viewport?: Viewport) {
   const layout: SavedLayout = { positions, viewport, savedAt: Date.now() };
   try {
     localStorage.setItem(key, JSON.stringify(layout));
-  } catch {
-    // quota exceeded — ignore
-  }
+  } catch {}
 }
 
 function loadLayout(key: string): SavedLayout | null {
@@ -106,10 +104,12 @@ function TopologyCanvasInner({
   const [layoutComputed, setLayoutComputed] = useState(false);
   const [layoutLocked, setLayoutLocked] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nodesRef = useRef<TopologyNode[]>([]);
   const storageKey = getStorageKey(cluster ?? undefined, namespaceFilter);
   const { getViewport, setViewport } = useReactFlow();
   const initialFitDone = useRef(false);
-  const nodesRef = useRef(nodes);
+
+  // Keep ref in sync
   useEffect(() => {
     nodesRef.current = nodes;
   }, [nodes]);
@@ -154,7 +154,6 @@ function TopologyCanvasInner({
           setNodes(allNodes);
           setEdges(graph.edges);
           setLayoutComputed(true);
-
           if (saved.viewport) {
             setTimeout(() => setViewport(saved.viewport!), 50);
           }
@@ -163,7 +162,6 @@ function TopologyCanvasInner({
         setNodes(positioned);
         setEdges(graph.edges);
         setLayoutComputed(true);
-
         if (saved.viewport) {
           setTimeout(() => setViewport(saved.viewport!), 50);
           initialFitDone.current = true;
@@ -183,13 +181,10 @@ function TopologyCanvasInner({
   const debouncedSave = useCallback(() => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      setNodes((current) => {
-        const vp = getViewport();
-        saveLayout(storageKey, current, vp);
-        return current;
-      });
+      const vp = getViewport();
+      saveLayout(storageKey, nodesRef.current, vp);
     }, 500);
-  }, [storageKey, setNodes, getViewport]);
+  }, [storageKey, getViewport]);
 
   const handleNodesChange = useCallback(
     (changes: Parameters<typeof onNodesChange>[0]) => {
@@ -220,10 +215,12 @@ function TopologyCanvasInner({
     });
   }, [graph, storageKey, setNodes, setEdges]);
 
+  // Metrics sparklines
   useEffect(() => {
     if (!metricsHistory || !layoutComputed) return;
-    setNodes((prev) =>
-      prev.map((node) => {
+    setNodes((prev) => {
+      let changed = false;
+      const next = prev.map((node) => {
         const d = node.data as TopologyNodeData;
         let metricsEntry;
         if (d.kind === "Pod") {
@@ -233,6 +230,7 @@ function TopologyCanvasInner({
           metricsEntry = metricsHistory.nodes.get(d.label);
         }
         if (!metricsEntry || metricsEntry.cpu.length < 2) return node;
+        changed = true;
         return {
           ...node,
           data: {
@@ -245,17 +243,21 @@ function TopologyCanvasInner({
             },
           },
         };
-      })
-    );
+      });
+      return changed ? next : prev;
+    });
   }, [metricsHistory, layoutComputed, setNodes]);
 
+  // Prometheus traffic on edges
   useEffect(() => {
     if (!prometheusTraffic || prometheusTraffic.length === 0 || !layoutComputed) return;
-    setEdges((prev) =>
-      prev.map((edge) => {
+    setEdges((prev) => {
+      let changed = false;
+      const next = prev.map((edge) => {
         if (edge.type !== "traffic") return edge;
-        const sourceNode = nodesRef.current.find((n) => n.id === edge.source);
-        const targetNode = nodesRef.current.find((n) => n.id === edge.target);
+        const currentNodes = nodesRef.current;
+        const sourceNode = currentNodes.find((n) => n.id === edge.source);
+        const targetNode = currentNodes.find((n) => n.id === edge.target);
         if (!sourceNode || !targetNode) return edge;
         const srcData = sourceNode.data as TopologyNodeData;
         const tgtData = targetNode.data as TopologyNodeData;
@@ -265,6 +267,7 @@ function TopologyCanvasInner({
             (tgtData.label.includes(t.source) || tgtData.label.includes(t.destination))
         );
         if (!match) return edge;
+        changed = true;
         return {
           ...edge,
           animated: true,
@@ -277,10 +280,12 @@ function TopologyCanvasInner({
             },
           },
         } as TopologyEdge;
-      })
-    );
+      });
+      return changed ? next : prev;
+    });
   }, [prometheusTraffic, layoutComputed, setEdges]);
 
+  // Live traffic from metrics-server + endpoints
   useEffect(() => {
     if (!trafficSnapshot || !layoutComputed) return;
 
@@ -296,22 +301,23 @@ function TopologyCanvasInner({
       }
     }
 
-    setNodes((prev) =>
-      prev.map((node) => {
+    setNodes((prev) => {
+      let changed = false;
+      const next = prev.map((node) => {
         const d = node.data as TopologyNodeData;
         if (d.kind === "Pod") {
           const key = `${d.namespace}/${d.label}`;
           const pm = activePods.get(key);
           if (pm) {
+            const newCpu = `${pm.cpuMillicores}m`;
+            const newMem = `${pm.memoryMi}Mi`;
+            if (d.info.cpu === newCpu && d.info.memory === newMem) return node;
+            changed = true;
             return {
               ...node,
               data: {
                 ...d,
-                info: {
-                  ...d.info,
-                  cpu: `${pm.cpuMillicores}m`,
-                  memory: `${pm.memoryMi}Mi`,
-                },
+                info: { ...d.info, cpu: newCpu, memory: newMem },
               },
             };
           }
@@ -319,31 +325,37 @@ function TopologyCanvasInner({
         if (d.kind === "Node") {
           const nm = trafficSnapshot.nodeMetrics.find((n) => n.name === d.label);
           if (nm) {
+            const newCpu = `${nm.cpuMillicores}m`;
+            const newMem = `${nm.memoryMi}Mi`;
+            if (d.info.cpu === newCpu && d.info.memory === newMem) return node;
+            changed = true;
             return {
               ...node,
               data: {
                 ...d,
-                info: {
-                  ...d.info,
-                  cpu: `${nm.cpuMillicores}m`,
-                  memory: `${nm.memoryMi}Mi`,
-                },
+                info: { ...d.info, cpu: newCpu, memory: newMem },
               },
             };
           }
         }
         return node;
-      })
-    );
+      });
+      return changed ? next : prev;
+    });
 
-    setEdges((prev) =>
-      prev.map((edge) => {
+    setEdges((prev) => {
+      let changed = false;
+      const next = prev.map((edge) => {
         const epKey = `${edge.source}-${edge.target}`;
         const reverseKey = `${edge.target}-${edge.source}`;
         const isLive = activeEndpoints.has(epKey) || activeEndpoints.has(reverseKey);
 
         if (isLive) {
-          const targetNode = nodesRef.current.find((n) => n.id === edge.target);
+          const ed = edge.data as Record<string, unknown> | undefined;
+          if (ed?.liveTraffic) return edge;
+          changed = true;
+          const currentNodes = nodesRef.current;
+          const targetNode = currentNodes.find((n) => n.id === edge.target);
           const tgtData = targetNode?.data as TopologyNodeData | undefined;
           let cpuLabel = "";
           if (tgtData?.kind === "Pod") {
@@ -369,8 +381,9 @@ function TopologyCanvasInner({
         }
 
         return edge;
-      })
-    );
+      });
+      return changed ? next : prev;
+    });
   }, [trafficSnapshot, layoutComputed, setNodes, setEdges]);
 
   const handleNodeClick = useCallback(
@@ -424,7 +437,6 @@ function TopologyCanvasInner({
         </div>
       )}
 
-      {/* Layout controls */}
       {layoutComputed && graph.nodes.length > 0 && (
         <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5">
           <button
