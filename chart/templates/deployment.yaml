@@ -60,6 +60,13 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /app/data
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 60
           livenessProbe:
             httpGet:
               path: /api/health
